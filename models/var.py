@@ -7,7 +7,7 @@ import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin
 
 import dist
-from models.basic_var import AdaLNBeforeHead, AdaLNSelfAttn
+from models.basic_var import AdaLNBeforeHead, AdaLNSelfAttn # MODIFY HERE: basic_var, basic_var_peri, basic_var_post
 from models.helpers import gumbel_softmax_with_rng, sample_with_top_k_top_p_
 from models.vqvae import VQVAE, VectorQuantizer2
 

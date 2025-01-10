@@ -5,7 +5,7 @@ import sys
 import time
 import warnings
 from functools import partial
-
+from datetime import datetime
 import torch
 from torch.utils.data import DataLoader
 
@@ -14,6 +14,7 @@ from utils import arg_util, misc
 from utils.data import build_dataset
 from utils.data_sampler import DistInfiniteBatchSampler, EvalDistributedSampler
 from utils.misc import auto_resume
+import wandb
 
 
 def build_everything(args: arg_util.Args):
@@ -170,6 +171,20 @@ def build_everything(args: arg_util.Args):
 
 def main_training():
     args: arg_util.Args = arg_util.init_dist_and_get_args()
+
+    # QWER
+    if dist.is_master():
+        current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+        run_name = f"VAR_{args.depth}_{current_time}"
+        wandb.init(
+            project="VAR",
+            name=run_name,
+            config=vars(args),
+            tags=None,
+            resume=None,
+            id=None
+        )
+
     if args.local_debug:
         torch.autograd.set_detect_anomaly(True)
     
@@ -249,6 +264,10 @@ def main_training():
     args.dump_log(); tb_lg.flush(); tb_lg.close()
     dist.barrier()
 
+    # QWER
+    if dist.is_master() and args.log_wandb and has_wandb:
+        wandb.finish()
+
 
 def train_one_ep(ep: int, is_first_ep: bool, start_it: int, args: arg_util.Args, tb_lg: misc.TensorboardLogger, ld_or_itrt, iters_train: int, trainer):
     # import heavy packages after Dataloader object creation
@@ -296,7 +315,7 @@ def train_one_ep(ep: int, is_first_ep: bool, start_it: int, args: arg_util.Args,
         stepping = (g_it + 1) % args.ac == 0
         step_cnt += int(stepping)
         
-        grad_norm, scale_log2 = trainer.train_step(
+        grad_norm, scale_log2, layer_grad_norms, param_norm = trainer.train_step(
             it=it, g_it=g_it, stepping=stepping, metric_lg=me, tb_lg=tb_lg,
             inp_B3HW=inp, label_B=label, prog_si=prog_si, prog_wp_it=args.pgwp * iters_train,
         )
@@ -312,6 +331,20 @@ def train_one_ep(ep: int, is_first_ep: bool, start_it: int, args: arg_util.Args,
         if args.tclip > 0:
             tb_lg.update(head='AR_opt_grad/grad', grad_norm=grad_norm)
             tb_lg.update(head='AR_opt_grad/grad', grad_clip=args.tclip)
+
+    # Log param_norm
+    tb_lg.update(head='AR_opt_param/param_norm', param_norm=param_norm)
+
+    # Log layer-wise gradient norms
+    for layer_name, layer_norm in layer_grad_norms.items():
+        tb_lg.update(head=f'AR_opt_layer_grad/{layer_name}', grad_norm=layer_norm)
+
+    # Optionally log to WandB if enabled
+    wandb.log({
+        'train/grad_norm': grad_norm,
+        'train/param_norm': param_norm,
+        **{f'train_layer_grad_norm/{layer_name}': layer_norm for layer_name, layer_norm in layer_grad_norms.items()},
+    })
     
     me.synchronize_between_processes()
     return {k: meter.global_avg for k, meter in me.meters.items()}, me.iter_time.time_preds(max_it - (g_it + 1) + (args.ep - ep) * 15)  # +15: other cost

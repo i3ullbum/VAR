@@ -152,11 +152,23 @@ class AdaLNSelfAttn(nn.Module):
     def forward(self, x, cond_BD, attn_bias):   # C: embed_dim, D: cond_dim
         if self.shared_aln:
             gamma1, gamma2, scale1, scale2, shift1, shift2 = (self.ada_gss + cond_BD).unbind(2) # 116C + B16C =unbind(2)=> 6 B1C
+            gamma3, gamma4, scale3, scale4, shift3, shift4 = (self.ada_gss + cond_BD).unbind(2) # 116C + B16C =unbind(2)=> 6 B1C
         else:
             gamma1, gamma2, scale1, scale2, shift1, shift2 = self.ada_lin(cond_BD).view(-1, 1, 6, self.C).unbind(2)
+            gamma3, gamma4, scale3, scale4, shift3, shift4 = self.ada_lin(cond_BD).view(-1, 1, 6, self.C).unbind(2)
         
-        x = x + self.drop_path(self.attn( self.ln_wo_grad(x).mul(scale1.add(1)).add_(shift1), attn_bias=attn_bias ).mul_(gamma1))
-        x = x + self.drop_path(self.ffn( self.ln_wo_grad(x).mul(scale2.add(1)).add_(shift2) ).mul(gamma2)) # this mul(gamma2) cannot be in-placed when FusedMLP is used
+        # ATTN
+        norm_A1 = self.ln_wo_grad(x).mul(scale1.add(1)).add_(shift1)
+        attn_out = self.attn(norm_A1, attn_bias=attn_bias).mul_(gamma1)
+        norm_B1 = self.ln_wo_grad(attn_out).mul(scale3.add(1)).add_(shift3)
+        x = x + self.drop_path(norm_A2)
+
+        # FFN
+        norm_A2 = self.ln_wo_grad(x).mul(scale2.add(1)).add_(shift2)
+        ffn_out = self.ffn(norm_A2).mul_(gamma2)
+        norm_B2 = self.ln_wo_grad(ffn_out).mul(scale4.add(1)).add_(shift4)
+        x = x + self.drop_path(norm_B2)
+        
         return x
     
     def extra_repr(self) -> str:

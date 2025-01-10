@@ -1,8 +1,13 @@
+numpy<2.0
 torch~=2.1.0
+torchvision
 
 Pillow
 huggingface_hub
-numpy
 pytz
 transformers
 typed-argument-parser
+wandb
+flash-attn
+xformers
+tensorboard

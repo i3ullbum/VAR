@@ -1,0 +1,57 @@
+{
+  "os":  "Linux-5.15.0-100-generic-x86_64-with-glibc2.35",
+  "python":  "CPython 3.10.16",
+  "startedAt":  "2025-01-10T09:08:03.108352Z",
+  "args":  [
+    "--depth=16",
+    "--bs=192",
+    "--ep=200",
+    "--fp16=1",
+    "--alng=1e-3",
+    "--wpe=0.1",
+    "--data_path=/data/rlwrld-common/beom/imagenet1k"
+  ],
+  "program":  "/data/rlwrld-common/beom/VAR/train.py",
+  "codePath":  "train.py",
+  "git":  {
+    "remote":  "https://github.com/i3ullbum/VAR.git",
+    "commit":  "02537250c191cf7b5ccaf683ba12bee5eeaa25da"
+  },
+  "email":  "bullbum1126@kaist.ac.kr",
+  "root":  "/data/rlwrld-common/beom/VAR",
+  "host":  "host-10-0-2-55",
+  "executable":  "/data/rlwrld-common/beom/miniconda3/envs/var/bin/python",
+  "codePathLocal":  "train.py",
+  "cpu_count":  24,
+  "cpu_count_logical":  48,
+  "gpu":  "NVIDIA A100 80GB PCIe",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "31024283648",
+      "used":  "21594292224"
+    }
+  },
+  "memory":  {
+    "total":  "405538086912"
+  },
+  "cpu":  {
+    "count":  24,
+    "countLogical":  48
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA A100 80GB PCIe",
+      "memoryTotal":  "85899345920",
+      "cudaCores":  6912,
+      "architecture":  "Ampere"
+    },
+    {
+      "name":  "NVIDIA A100 80GB PCIe",
+      "memoryTotal":  "85899345920",
+      "cudaCores":  6912,
+      "architecture":  "Ampere"
+    }
+  ],
+  "cudaVersion":  "12.4"
+}

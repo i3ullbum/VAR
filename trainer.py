@@ -10,11 +10,62 @@ import dist
 from models import VAR, VQVAE, VectorQuantizer2
 from utils.amp_sc import AmpOptimizer
 from utils.misc import MetricLogger, TensorboardLogger
+import wandb
 
 Ten = torch.Tensor
 FTen = torch.Tensor
 ITen = torch.LongTensor
 BTen = torch.BoolTensor
+
+
+# QWER
+def compute_grad_norms(model):
+    """
+    Returns:
+      total_grad_norm (float): The L2 norm of all parameters' gradients.
+      layer_grad_norms (dict): Mapping from layer-name -> L2 grad norm for that layer.
+    """
+    total_norm_sqr = 0.0
+    layer_grad_norms = {}
+    for name, p in model.named_parameters():
+        if p.grad is not None:
+            gn = p.grad.data.norm(2).item()
+            layer_grad_norms[name] = gn
+            total_norm_sqr += gn * gn
+
+    total_grad_norm = total_norm_sqr ** 0.5
+    return total_grad_norm
+
+def compute_layer_grad_norms(model):
+    """
+    Compute gradient norms for each layer (aggregated over all parameters in the layer).
+
+    Args:
+      model (nn.Module): The model being trained.
+
+    Returns:
+      dict: Mapping from layer name to gradient norm (L2 norm).
+    """
+    layer_grad_norms = {}
+    for name, module in model.named_modules():
+        # Aggregate gradient norms for all parameters in this layer
+        total_grad_norm_sqr = 0.0
+        for param in module.parameters(recurse=False):  # Only parameters in this module, not submodules
+            if param.grad is not None:
+                total_grad_norm_sqr += param.grad.data.norm(2).item() ** 2
+        total_grad_norm = total_grad_norm_sqr ** 0.5
+        if total_grad_norm > 0:
+            layer_grad_norms[name] = total_grad_norm
+    return layer_grad_norms
+
+# QWER
+def compute_param_norm(model):
+    """Return total param norm for entire model."""
+    total_norm_sqr = 0.0
+    for p in model.parameters():
+        param_norm = p.data.norm(2).item()
+        total_norm_sqr += param_norm ** 2
+    return total_norm_sqr ** 0.5
 
 
 class VARTrainer(object):
@@ -122,6 +173,9 @@ class VARTrainer(object):
         # backward
         grad_norm, scale_log2 = self.var_opt.backward_clip_step(loss=loss, stepping=stepping)
         
+        param_norm = compute_param_norm(self.var_wo_ddp)
+        layer_grad_norms = compute_layer_grad_norms(self.var_wo_ddp)
+
         # log
         pred_BL = logits_BLV.data.argmax(dim=-1)
         if it == 0 or it in metric_lg.log_iters:
@@ -157,7 +211,7 @@ class VARTrainer(object):
                 tb_lg.update(head='AR_iter_schedule', prog_a_reso=self.resos[prog_si], prog_si=prog_si, prog_wp=prog_wp, step=g_it)
         
         self.var_wo_ddp.prog_si = self.vae_local.quantize.prog_si = -1
-        return grad_norm, scale_log2
+        return grad_norm, scale_log2, layer_grad_norms, param_norm
     
     def get_config(self):
         return {

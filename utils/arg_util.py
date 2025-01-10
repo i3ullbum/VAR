@@ -174,13 +174,30 @@ class Args(Tap):
             print(f'[tf32] [ conv ] torch.backends.cudnn.allow_tf32: {torch.backends.cudnn.allow_tf32}')
             print(f'[tf32] [matmul] torch.backends.cuda.matmul.allow_tf32: {torch.backends.cuda.matmul.allow_tf32}')
     
+    # def dump_log(self):
+    #     if not dist.is_local_master():
+    #         return
+    #     if '1/' in self.cur_ep: # first time to dump log
+    #         with open(self.log_txt_path, 'w') as fp:
+    #             json.dump({'is_master': dist.is_master(), 'name': self.exp_name, 'cmd': self.cmd, 'commit': self.commit_id, 'branch': self.branch, 'tb_log_dir_path': self.tb_log_dir_path}, fp, indent=0)
+    #             fp.write('\n')
+        
+    #     log_dict = {}
+    #     for k, v in {
+    #         'it': self.cur_it, 'ep': self.cur_ep,
+    #         'lr': self.cur_lr, 'wd': self.cur_wd, 'grad_norm': self.grad_norm,
+    #         'L_mean': self.L_mean, 'L_tail': self.L_tail, 'acc_mean': self.acc_mean, 'acc_tail': self.acc_tail,
+    #         'vL_mean': self.vL_mean, 'vL_tail': self.vL_tail, 'vacc_mean': self.vacc_mean, 'vacc_tail': self.vacc_tail,
+    #         'remain_time': self.remain_time, 'finish_time': self.finish_time,
+    #     }.items():
+    #         if hasattr(v, 'item'): v = v.item()
+    #         log_dict[k] = v
+    #     with open(self.log_txt_path, 'a') as fp:
+    #         fp.write(f'{log_dict}\n')
+
     def dump_log(self):
         if not dist.is_local_master():
             return
-        if '1/' in self.cur_ep: # first time to dump log
-            with open(self.log_txt_path, 'w') as fp:
-                json.dump({'is_master': dist.is_master(), 'name': self.exp_name, 'cmd': self.cmd, 'commit': self.commit_id, 'branch': self.branch, 'tb_log_dir_path': self.tb_log_dir_path}, fp, indent=0)
-                fp.write('\n')
         
         log_dict = {}
         for k, v in {
@@ -192,8 +209,10 @@ class Args(Tap):
         }.items():
             if hasattr(v, 'item'): v = v.item()
             log_dict[k] = v
-        with open(self.log_txt_path, 'a') as fp:
-            fp.write(f'{log_dict}\n')
+
+        if hasattr(self, 'log_wandb') and self.log_wandb:
+            wandb.log(log_dict)
+
     
     def __str__(self):
         s = []
